@@ -1,0 +1,16 @@
+.vs/
+**/bin/
+**/obj/
+artifacts/
+reports/
+
+/*.dll
+/*.pdb
+
+/b1.txt
+/build*.txt
+/harness*.txt
+/probe*.txt
+/resolve_hits.txt
+/sln_add.txt
+/verify_out.txt

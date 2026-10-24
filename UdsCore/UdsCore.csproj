@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0</TargetFrameworks>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyName>Jabil.Uds.DoIp</AssemblyName>
+    <RootNamespace>UdsCore</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>DoIP transport and session provider for the shared Jabil UDS engine.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExcelDecodeCore\ExcelDecodeCore.csproj" />
+    <ProjectReference Include="..\UdsProtocol\UdsProtocol.csproj" />
+    <Compile Remove="UdsStepConfig.cs" />
+  </ItemGroup>
+
+</Project>

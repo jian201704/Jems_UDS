@@ -1,0 +1,22 @@
+{
+  "measurements": [
+    {
+      "name": "转速",
+      "offset": 3,
+      "length": 2,
+      "type": "uint16",
+      "endian": "big",
+      "formula": "x/4",
+      "unit": "rpm"
+    },
+    {
+      "name": "温度",
+      "offset": 5,
+      "length": 2,
+      "type": "uint16",
+      "endian": "big",
+      "formula": "x*0.1-40",
+      "unit": "°C"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyName>Jabil.Uds.FunctionLibrary</AssemblyName>
+    <RootNamespace>UdsFunctionLibrary</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>JESM/JabilTest function adapters for shared UDS, DoIP, CAN, Excel, and decoding capabilities.</Description>
+  </PropertyGroup>
+
+  <!--
+    多 DLL 部署（JEMSts probing 已包含 Modules\UserLibraries）：
+    - ExcelDecodeCore.dll（共享：Excel/解码/配置，其它协议库也引用）
+    - DoipCore.dll（UDS/DoIP 引擎）
+    - DoipFunctionLibrary.dll（本库，JEMSts Test 函数类）
+    三者都部署到 JEMSts 的 Modules\UserLibraries\ 即可。
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\UdsCore\UdsCore.csproj" />
+    <ProjectReference Include="..\UdsCan\UdsCan.csproj" />
+    <ProjectReference Include="..\UdsEngine\UdsEngine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Jabil_Test_Base_Function">
+      <HintPath>..\lib\Jabil_Test_Base_Function.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ScriptVariableSpaceInterface">
+      <HintPath>..\lib\ScriptVariableSpaceInterface.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+</Project>

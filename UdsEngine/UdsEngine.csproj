@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0</TargetFrameworks>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyName>Jabil.Uds.Engine</AssemblyName>
+    <RootNamespace>UdsEngine</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Transport-neutral UDS transaction executor for CAN, DoIP, LIN, and future transports.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UdsProtocol\UdsProtocol.csproj" />
+  </ItemGroup>
+</Project>

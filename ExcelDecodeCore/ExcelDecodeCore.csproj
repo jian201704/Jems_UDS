@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0</TargetFrameworks>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyName>Jabil.Uds.Shared</AssemblyName>
+    <RootNamespace>ExcelDecodeCore</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Shared UDS configuration, Excel decoding, validation, result context, and transport contracts used by DoIP and CAN providers.</Description>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Reference Include="System.IO.Compression" />
+  </ItemGroup>
+
+</Project>

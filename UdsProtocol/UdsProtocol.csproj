@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0</TargetFrameworks>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyName>Jabil.Uds.Protocol</AssemblyName>
+    <RootNamespace>UdsCore</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Vendor-neutral UDS configuration and Excel step mapping shared by DoIP, CAN, LIN, and future transports.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ExcelDecodeCore\ExcelDecodeCore.csproj" />
+  </ItemGroup>
+</Project>

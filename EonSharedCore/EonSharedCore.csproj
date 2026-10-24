@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyName>EonSharedCore</AssemblyName>
+    <RootNamespace>EonSharedCore</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>EonTest-derived shared engine: xlsx parsing, test-step/dev-channel sheet readers, response decode, config pairs, hex, json, formula. Protocol-agnostic, reused by all hardware-protocol libraries (UDS/DoIP, Modbus, CAN, serial, ...).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+  </ItemGroup>
+
+</Project>

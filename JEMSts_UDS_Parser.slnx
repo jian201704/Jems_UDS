@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="UdsCan/UdsCan.csproj" />
+  <Project Path="UdsCanZlg/UdsCanZlg.csproj" />
+  <Project Path="ExcelDecodeCore/ExcelDecodeCore.csproj" />
+  <Project Path="UdsConsoleHarness/UdsConsoleHarness.csproj" />
+  <Project Path="UdsCore/UdsCore.csproj" />
+  <Project Path="UdsProtocol/UdsProtocol.csproj" />
+  <Project Path="UdsEngine/UdsEngine.csproj" />
+  <Project Path="UdsFunctionLibrary/UdsFunctionLibrary.csproj" />
+</Solution>

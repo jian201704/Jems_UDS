@@ -1,0 +1,346 @@
+// ============================================================================
+// JEMSts 示例脚本
+// ============================================================================
+// 前置：把dll拷贝到
+//       D:\Projects\ZEEKR\Software\JEMSts_8.55.00x64\Modules\UserLibraries\
+// 本脚本演示三种用法：
+//   1) 配置驱动单步  DoIP_UDS_Step   （G 列原文 + P 列解码配置）
+//   2) Excel 直读单步 DoIP_UDS_ExcelStep （按工步号读共享 Excel）
+//   3) Excel 一键全跑 DoIP_UDS_ExcelRunAll （整张表的 UDS 步骤）
+// ============================================================================
+SetFinalizeFunction("Cleanup");
+$Doip_Sension_Name = "HRU_Doip";
+//~ call Doip_Excel_Step();
+call Doip_Test_Step();
+End;
+// ---------------------------------------------------------------------------
+// 用法 1：配置驱动（G 列 + P 列）
+// ---------------------------------------------------------------------------
+// 第一条：建会话 + 路由激活 + 10 01（地址参数只在这一步写，后续复用会话）
+//~ DoIP_UDS_Step(
+    //~ "host=172.16.0.8,port=13400,sourceAddress=0x102D,targetAddress=0x1008,activationType=0x00,"
+    //~ + "udsPayload=10 01,expectedPrefix=50 01,connectionMode=session,minRequestIntervalMs=20,"
+    //~ + "doipNackRetryCount=2,udsKeepAliveEnabled=true,udsKeepAliveIntervalMs=2000",
+    //~ "", "DoIP_ECU");
+
+// 单测量项：读 DID，内联解码（valueOffset/valueLength/valueType/endian/formula）
+//~ ($status, $resp, $name, $value, $raw, $unit) = DoIP_UDS_Step(
+    //~ "udsPayload=22 F1 05,expectedPrefix=62 F1 05,valueOffset=3,valueLength=2,valueType=uint16,endian=big,formula=x/4",
+    //~ "", "DoIP_ECU");
+//~ UpdateStatus("Engine speed = " + $value + " " + $unit);
+
+// 多测量项：P 列引用解码 Profile 文件
+//~ ($status2, $resp2) = DoIP_UDS_Step(
+    //~ "udsPayload=22 F1 30,expectedPrefix=62 F1 30",
+    //~ "{\"decodeProfile\":\"DoIP_DID_F130.json\"}", "DoIP_ECU");
+
+// 序列命令：udsSequence 管道分隔，expectedPrefix/expectedResponse 可一一对应
+//~ DoIP_UDS_Step(
+    //~ "udsSequence=10 03|22 F1 05|22 F1 30,"
+    //~ + "expectedResponse=50 03|62 F1 05|62 F1 30,"
+    //~ + "connectionMode=session,minRequestIntervalMs=20",
+    //~ "", "DoIP_ECU");
+
+// 31 01 启动例程（失败自动 31 02 停止重试）
+//~ DoIP_UDS_Step(
+    //~ "udsPayload=31 01 02 01,expectedPrefix=71 01 02 01,sequenceRetryCount=3,sequenceRetryDelayMs=1000",
+    //~ "", "DoIP_ECU");
+function Doip_Excel_Step()
+{
+	// ---------------------------------------------------------------------------
+	// 用法 2：Excel 直读单步（共享 EonTest 的测试工步表）
+	// ---------------------------------------------------------------------------
+	UpdateStatus("===================Start Doip_Excel_Step===================");
+	// 直接传工步号，函数内部读该行的 G 列（配置参数1）+ P 列（解码配置）执行
+	$testExcel = "E:\\SourceCode\\EonTest\\Workflows\\real-device-acceptance.xlsx";
+	$stepLoop = 2;
+	while($stepLoop < 42)
+	{
+		UpdateStatus($stepLoop);
+		($result, $testItem, $req, $resp, $value, $unit, $limits, $testType)  = DoIP_UDS_ExcelStep($testExcel, "StepTable", $stepLoop);
+		$updateStr = $result + "\n" + $testItem + "\n" + $req + "\n" + $resp + "\n" + $value + "\n" + $unit + "\n" + $limits + "\n" + $testType;
+		UpdateStatus($updateStr);
+		$ismulItem = StringContains($result,"|");
+		SetTestName($testItem);
+		if($ismulItem)
+		{
+			$ismulItem1 = StringContains($testItem,"|");
+			$ismulItem2 = StringContains($value,"|");
+			if($ismulItem1 && $ismulItem2)
+			{
+				$itemArray = StringSplitToArray($testItem, "|", 10);
+				$valueArray = StringSplitToArray($value, "|", 10);
+				$unitArray = StringSplitToArray($unit, "|", 10);
+				$arrayLength = ArrayGetLength($itemArray);
+				$recordLoop = 0;
+				while($recordLoop < $arrayLength)
+				{
+					$recordItemName = Array1DGetValue($itemArray, $recordLoop);
+					$recordItemValue = Array1DGetValue($valueArray, $recordLoop);
+					$recordItemUnit = Array1DGetValue($unitArray, $recordLoop);
+					RecordMeasurementPassFail($recordItemName, $recordItemValue, $recordItemUnit, "TRUE", $result);
+					$recordLoop = $recordLoop + 1;
+				}
+			}
+			if( !$ismulItem1 || !$ismulItem2)
+			{
+				RecordMeasurementPassFail($testItem, $value, $unit, "TRUE", $result);
+			}
+		}
+		if($testType == 7)
+		{
+			($lowerLimit, $upperLimit) = StringSplit($limits,"~",2);
+			RecordMeasurementWithLimits($testItem, $value, $unit, "TRUE", $lowerLimit, $upperLimit, true);
+		}
+		if($testType == 1)
+		{
+			$msg = "->:" + $req + ",<-:" + $resp;
+			RecordMeasurementPassFail($testItem, $msg, $unit, "TRUE", $result);
+		}
+		if($testType >= 2 && $testType <= 6)
+		{
+			$msg = "->:" + $req + ",<-:" + $resp;
+			RecordMeasurementPassFail($testItem, $msg, $unit, "TRUE", $result);
+		}
+		if($testType == 8)
+		{
+			$msg = "->:" + $req + ",<-:" + $resp;
+			RecordMeasurementPassFail($testItem, $msg, $unit, "TRUE", $result);
+		}
+		if($testType == 9)
+		{
+			RecordMeasurementPassFail($testItem, $value, $unit, "TRUE", $result);
+		}
+		$stepLoop = $stepLoop + 1;
+		SleepMilliseconds(50);
+	}
+	UpdateStatus("===================Stop Doip_Excel_Step===================");
+	return;
+}
+
+function Doip_Test_Step()
+{
+	// ---------------------------------------------------------------------------
+	// 用法 2：Excel 直读单步（共享 EonTest 的测试工步表）
+	// ---------------------------------------------------------------------------
+	UpdateStatus("===================Start Doip_Test_Step===================");
+	// 直接传工步号，函数内部读该行的 G 列（配置参数1）+ P 列（解码配置）执行
+	$testExcel = "E:\\SourceCode\\EonTest\\Workflows\\HRU_Final.xlsx";
+	$excelFile = $testExcel;
+    $sheetNum 		= 1; //sheet
+    $startCol 		    = "A";
+    $startRow 		= 3;
+    $endCol 		    = "M";
+    $endRow 			= 41;
+    call LoadExcelConfigFile();
+	$rows_Num=0;
+    $rows_Last = $rows_Length - 1;
+    $testStep_Loop = 0;
+	$stepLoop = 2;
+	while($rows_Num<$rows_Length)
+	{
+		$rowArray 	    = Array1DGetRowFrom2D($sheet_array, $rows_Num); //Read row 
+		$isTest = Array1DGetValue($rowArray ,1);
+		$TestName		= Array1DGetValue($rowArray ,2);
+		$SubTestName= Array1DGetValue($rowArray ,3);
+		$action= Array1DGetValue($rowArray ,5);
+		$requestConfig		= Array1DGetValue($rowArray ,6);
+		$decodeConfig	= Array1DGetValue($rowArray ,7); 
+		$lowLimit	= Array1DGetValue($rowArray ,8); 
+		$upLimit  = Array1DGetValue($rowArray ,9); 
+		$Uint  = Array1DGetValue($rowArray ,10); 
+		//string trim
+		$isTest = StringTrim($isTest);
+		$TestName = StringTrim($TestName);
+		$SubTestName = StringTrim($SubTestName);
+		$action = StringTrim($action);
+		$requestConfig = StringTrim($requestConfig);
+		$decodeConfig = StringTrim($decodeConfig);
+		$lowLimit = StringTrim($lowLimit);
+		$upLimit = StringTrim($upLimit);
+		$Uint = StringTrim($Uint);
+		//~ if($rows_Num == 0)
+		//~ {
+			//~ $requestConfig = "host=172.16.0.8,port=13400," + $requestConfig;
+		//~ }
+		UpdateStatus($isTest);
+		UpdateStatus($TestName);
+		UpdateStatus($SubTestName);
+		UpdateStatus($action);
+		UpdateStatus($requestConfig);
+		UpdateStatus($decodeConfig);
+		UpdateStatus($lowLimit);
+		UpdateStatus($upLimit);
+		UpdateStatus($Uint);
+		$rows_Num= $rows_Num + 1;
+		$Send_Result = true;
+		$Send_Unit = "hex";
+		$Resonse_Result = true;
+		if($action == "send_uds")
+		{
+			($result, $testItem, $req, $resp, $value, $unit, $limits, $testType) = DoIP_UDS_Step($requestConfig,$decodeConfig,$Doip_Sension_Name,$lowLimit,$upLimit,$Uint);
+			$expectedContext = $Result_step_expectedContext;
+			$updateStr = $result + "\n" + $testItem + "\n" + $req + "\n" + $resp + "\n" + $value + "\n" + $unit + "\n" + $limits + "\n" + $testType + "\n" + $expectedContext;
+			UpdateStatus($updateStr);
+			$ismulItem = StringContains($result,"|");
+			if($ismulItem)
+			{
+				$resultArray = StringSplitToArray($result, "|", 20);
+				$result = Array1DGetValue($itemArray, 0)
+			}
+			if(!$result)
+			{
+				$stage = $Result_step_FailureStage;
+				UpdateStatus($stage);
+				if($stage == "CONNECT" || $stage == "EXECUTION" || $stage == "ROUTING" || $stage == "CONFIG" )
+				{
+					$error = $Result_step_Error;
+					UpdateStatus($error);
+					RecordMeasurementPassFail($SubTestName, $error, "", "TRUE", false);
+					Fail($error);
+				}
+				if($stage == "SEND")
+				{
+					$Send_Result = false;
+					$Resonse_Result = false;
+				}
+				if($stage == "TIMEOUT" || $stage == "RESPONSE_MISMATCH")
+				{
+					$Resonse_Result = false;
+				}
+			}
+			//~ $ismulItem = StringContains($testItem,"|");
+			SetTestName($TestName);
+			//~ SetTestGroupName($TestName);
+			if($ismulItem)
+			{
+				$ismulItem1 = StringContains($testItem,"|");
+				$ismulItem2 = StringContains($value,"|");
+				if($ismulItem1 && $ismulItem2)
+				{
+					$itemArray = StringSplitToArray($testItem, "|", 20);
+					$valueArray = StringSplitToArray($value, "|", 20);
+					$unitArray = StringSplitToArray($unit, "|", 20);
+					$arrayLength = ArrayGetLength($itemArray);
+					$recordItemName = $SubTestName + "->Request";
+					RecordMeasurementPassFail($recordItemName, $req, $Send_Unit, "TRUE", $Send_Result);
+					$recordItemName = $SubTestName + "->Response";
+					RecordMeasurementPassFail($recordItemName, $resp, $expectedContext, "TRUE", $Resonse_Result);
+					$recordLoop = 0;
+					while($recordLoop < $arrayLength)
+					{
+						$recordItemName = Array1DGetValue($itemArray, $recordLoop);
+						$recordItemValue = Array1DGetValue($valueArray, $recordLoop);
+						$recordItemUnit = Array1DGetValue($unitArray, $recordLoop);
+						$recordItemResult = Array1DGetValue($resultArray, $recordLoop);
+						RecordMeasurementPassFail($recordItemName, $recordItemValue, $recordItemUnit, "TRUE", $recordItemResult);
+						$recordLoop = $recordLoop + 1;
+					}
+				}
+				if( !$ismulItem1 || !$ismulItem2)
+				{
+					RecordMeasurementPassFail($testItem, $value, $unit, "TRUE", $result);
+				}
+			}
+			if($testType == 7)
+			{
+				($lowerLimit, $upperLimit) = StringSplit($limits,"~",2);
+				$recordItemName = $SubTestName + "->Request";
+				RecordMeasurementPassFail($recordItemName, $req, $Send_Unit, "TRUE", $Send_Result);
+				$recordItemName = $SubTestName + "->Response";
+				RecordMeasurementPassFail($recordItemName, $resp, $expectedContext, "TRUE", $Resonse_Result);
+				RecordMeasurementWithLimits($SubTestName, $value, $unit, "TRUE", $lowerLimit, $upperLimit, true);
+			}
+			if($testType == 1)
+			{
+				//~ $msg = "->:" + $req + ",<-:" + $resp;
+				//~ RecordMeasurementPassFail($SubTestName, $msg, $unit, "TRUE", $result);
+				$recordItemName = $SubTestName + "->Request";
+				RecordMeasurementPassFail($recordItemName, $req, $Send_Unit, "TRUE", $Send_Result);
+				$recordItemName = $SubTestName + "->Response";
+				RecordMeasurementPassFail($recordItemName, $resp, $expectedContext, "TRUE", $Resonse_Result);
+			}
+			if($testType >= 2 && $testType <= 6)
+			{
+				//~ $msg = "->:" + $req + ",<-:" + $resp;
+				//~ RecordMeasurementPassFail($SubTestName, $msg, $unit, "TRUE", $result);
+				
+				$recordItemName = $SubTestName + "->Request";
+				RecordMeasurementPassFail($recordItemName, $req, $Send_Unit, "TRUE", $Send_Result);
+				$recordItemName = $SubTestName + "->Response";
+				RecordMeasurementPassFail($recordItemName, $resp, $expectedContext, "TRUE", $Resonse_Result);
+				RecordMeasurementPassFail($SubTestName, $value, $unit, "TRUE", $result);
+			}
+			if($testType == 8)
+			{
+				//~ $msg = "->:" + $req + ",<-:" + $resp;
+				//~ RecordMeasurementPassFail($SubTestName, $msg, $unit, "TRUE", $result);
+				$recordItemName = $SubTestName + "->Request";
+				RecordMeasurementPassFail($recordItemName, $req, $Send_Unit, "TRUE", $Send_Result);
+				$recordItemName = $SubTestName + "->Response";
+				RecordMeasurementPassFail($recordItemName, $resp, $unit, "TRUE", $result);
+			}
+			if($testType == 9)
+			{
+				RecordMeasurementPassFail($SubTestName, $value, $unit, "TRUE", $result);
+			}
+			$stepLoop = $stepLoop + 1;
+			SleepMilliseconds(50);
+		}
+		if($action == "delay")
+		{
+			($name,$delayTime) = StringSplit($requestConfig,"=",2);
+			$delayTime = StringTrim($delayTime);
+			SleepMilliseconds($delayTime);
+		}
+	}
+	UpdateStatus("===================Stop Doip_Test_Step===================");
+	return;
+}
+// ---------------------------------------------------------------------------
+// 用法 3：Excel 一键跑完整张表的 UDS 步骤（最终形态）
+// ---------------------------------------------------------------------------
+//~ ($passCount, $failCount, $total) = DoIP_UDS_ExcelRunAll(
+    //~ "D:\\Tests\\real-device-acceptance.xlsx", "测试工步表");
+//~ UpdateStatus("ExcelRunAll: pass=" + $passCount + " fail=" + $failCount + " total=" + $total);
+
+// ---------------------------------------------------------------------------
+// 手动会话控制（可选，对齐现有 ZLG ZUDS 系列的习惯）
+// ---------------------------------------------------------------------------
+//~ ($handle, $ok) = DoIP_UDS_Init("172.16.0.8", 13400, "0x102D", "0x1008", "0x00", "DoIP_ECU");
+//~ UpdateStatus($handle);
+//~ UpdateStatus($ok);
+//~ SleepMilliseconds(50);
+//~ DoIP_UDS_Set_Tester_Present("DoIP_ECU", 2000, "3E 80", 1);
+//~ ($respData, $ustatus, $utype, $uds_str) = DoIP_UDS_Request("DoIP_ECU", "22 F1 05", "62 F1 05", "", 5000);
+//~ UpdateStatus($respData);
+//~ UpdateStatus($ustatus);
+//~ UpdateStatus($utype);
+//~ UpdateStatus($uds_str);
+//~ DoIP_UDS_Release("DoIP_ECU");
+
+// 独立解码验证（不需要会话）
+//~ ($dvalue, $dname, $dunit) = DoIP_UDS_Decode("62 F1 05 0B B8",
+//~ "valueOffset=3,valueLength=2,valueType=uint16,endian=big,formula=x/4");
+function LoadExcelConfigFile()
+{
+    UpdateStatus("============Load Execel File Begin============");
+
+    $excelHandle = ExcelOpenFile($excelFile);
+    $sheet_array = ExcelGetRange($excelHandle, $sheetNum, $startCol, $startRow, $endCol, $endRow); 
+    ExcelCloseFile($excelHandle);
+    $dataArray_len= ArrayGetLength($sheet_array);		// 一维数组
+    $rows_Length = ArrayGetDimensionSize($sheet_array, 0); 
+    $cols_Length = ArrayGetDimensionSize($sheet_array, 1);  
+    $Display="The rows_Length is:"+$rows_Length+", The columns_Length is:"+$cols_Length;
+    UpdateStatus($Display);
+    UpdateStatus("============Load Execel File End============");
+    return;
+}
+function Cleanup()
+{
+	UpdateStatus("===================Start Cleanup===================");
+	DoIP_UDS_Release($Doip_Sension_Name);
+	UpdateStatus("===================Stop Cleanup===================");
+	End;
+}

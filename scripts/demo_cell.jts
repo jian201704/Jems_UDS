@@ -1,0 +1,145 @@
+// ============================================================================
+// JEMSts 示例脚本：用 EonTest 测试工步表的 G/P 列配置跑 DoIP/UDS 步骤
+// ============================================================================
+// 前置：把 DoipFunctionLibrary.dll 拷贝到
+//       D:\Projects\ZEEKR\Software\JEMSts_8.55.00x64\Modules\UserLibraries\
+// 失败策略（ZLG 风格）：本库函数【不会】因步骤失败而终止脚本，
+// 真实成败状态通过返回值暴露（ReturnValue0 = PASS / FAIL / ERROR），
+// 由脚本自行判断：可以继续、可以停机、可以跳转失败处理。
+//
+// 统一返回（DoIP_UDS_Step / DoIP_UDS_ExcelStep）：
+//   ($result,$testItem,$req,$resp,$value,$unit,$limits,$testType)
+//   result     = 布尔：true=PASS，false=FAIL/ERROR（UDS 收发 + 值校验综合）
+//   testItem   = 名称：单测量项=Excel E 列测试项；多测量项=各测量项名（| 分隔，与 value 对齐）
+//   req / resp = UDS 请求 / 响应 HEX
+//   value/unit/limits = 测试值 / 单位 / 上下限（多测量项用 | 分隔，三组按位置对齐）
+// 失败原因在状态栏打印（不走返回值）。
+// 本脚本演示三种用法：
+//   1) 配置驱动单步  DoIP_UDS_Step   （G 列原文 + P 列解码配置）
+//   2) Excel 直读单步 DoIP_UDS_ExcelStep （按工步号读共享 Excel）
+//   3) Excel 一键全跑 DoIP_UDS_ExcelRunAll （整张表的 UDS 步骤）
+// ============================================================================
+
+SetTestName("DoIP UDS Demo");
+UpdateStatus("====== DoIP UDS Demo start ======");
+
+// ---------------------------------------------------------------------------
+// 用法 1：配置驱动（G 列 + P 列），完全沿用 EonTest 测试工步表的键
+// ---------------------------------------------------------------------------
+// 第一条：建会话 + 路由激活 + 10 01（地址参数只在这一步写，后续复用会话）
+DoIP_UDS_Step(
+    "host=172.16.0.8,port=13400,sourceAddress=0x102D,targetAddress=0x1008,activationType=0x00,"
+    + "udsPayload=10 01,expectedPrefix=50 01,connectionMode=session,minRequestIntervalMs=20,"
+    + "doipNackRetryCount=2,udsKeepAliveEnabled=true,udsKeepAliveIntervalMs=2000",
+    "", "DoIP_ECU");
+
+// 单测量项：读 DID，内联解码（valueOffset/valueLength/valueType/endian/formula）
+($result, $testItem, $req, $resp, $value, $unit, $limits, $testType) = DoIP_UDS_Step(
+    "udsPayload=22 F1 05,expectedPrefix=62 F1 05,valueOffset=3,valueLength=2,valueType=uint16,endian=big,formula=x/4",
+    "", "DoIP_ECU");
+if($result == true)
+{
+    UpdateStatus("Engine speed = " + $value + " " + $unit + "  [" + $limits + "]");
+}
+else
+{
+    // 失败不会终止脚本，原因在状态栏；在这里自行决定：继续、停机或记入统计
+    UpdateStatus("Engine speed step FAILED");
+}
+
+// 多测量项：P 列引用解码 Profile 文件。
+// $testItem="测量项名1|测量项名2"，$value/$unit/$limits 为 | 分隔、按位置对齐。
+($result2, $testItem2, $req2, $resp2, $values2, $units2, $limits2, $testType2) = DoIP_UDS_Step(
+    "udsPayload=22 F1 30,expectedPrefix=62 F1 30",
+    "{\"decodeProfile\":\"DoIP_DID_F130.json\"}", "DoIP_ECU");
+UpdateStatus("Profile step [" + $testItem2 + "]: " + $values2 + " " + $units2 +
+    "  limits: " + $limits2 + "  type: " + $testType2);
+
+// 字符串/状态单值校验（无上下限）：
+// ① 原始报文匹配 expectedResponse/expectedPrefix（EonTest 原生）
+DoIP_UDS_Step("udsPayload=22 F1 87,expectedResponse=62 F1 87 53 57 5F 56 45 52 5F 31 2E 30", "", "DoIP_ECU");
+// ② 解码后的值匹配：解码 + 期望值都放 P 列（单测量项 inline key=value）
+($s3,$n3,$q3,$p3,$v3,$u3,$l3,$t3) = DoIP_UDS_Step(
+    "udsPayload=22 F1 87,expectedPrefix=62 F1 87",
+    "valueType=string,encoding=ascii,trim=true,expectedValue=SW_VER_1.0", "DoIP_ECU");
+// 状态码：解码 + 期望值都放 P 列（数值比较，0x 前缀也认）
+($s4,$n4,$q4,$p4,$v4,$u4,$l4,$t4) = DoIP_UDS_Step(
+    "udsPayload=31 01 02 01,expectedPrefix=71 01 02 01",
+    "valueOffset=3,valueLength=1,valueType=uint8,expectedValue=0x00", "DoIP_ECU");
+
+// ③ 综合值校验：解码 + 校验键都放 P 列（多键 AND；EonTest ValueAnalyzer 同套键）
+// 版本号包含 "VER"、匹配正则 [A-Z]{1,5}_[0-9]{1,3}、长度≥6 且 ≤ 20
+($s5,$n5,$q5,$p5,$v5,$u5,$l5,$t5) = DoIP_UDS_Step(
+    "udsPayload=22 F1 87,expectedPrefix=62 F1 87",
+    "valueType=string,encoding=ascii,trim=true,expectedContains=VER,expectedRegex=[A-Z]{1,5}_[0-9]{1,3},expectedMinLength=6,expectedMaxLength=20",
+    "DoIP_ECU");
+// 不含 "DEV"、大小写不敏感地含 "ver"
+($s6,$n6,$q6,$p6,$v6,$u6,$l6,$t6) = DoIP_UDS_Step(
+    "udsPayload=22 F1 87,expectedPrefix=62 F1 87",
+    "valueType=string,encoding=ascii,trim=true,expectedNotContains=DEV,expectedStartsWith=SW,expectedContains=ver,expectedCaseSensitive=false",
+    "DoIP_ECU");
+// 数值区间（解码值须在 [0, 8000] 内）
+($s7,$n7,$q7,$p7,$v7,$u7,$l7,$t7) = DoIP_UDS_Step(
+    "udsPayload=22 F1 05,expectedPrefix=62 F1 05",
+    "valueOffset=3,valueLength=2,valueType=uint16,endian=big,expectedMin=0,expectedMax=8000",
+    "DoIP_ECU");
+
+// 多测量项 per-item 校验（P 列 JSON 数组，每项内嵌 expectedXxx，全部通过才 PASS；
+// 任一失败→ReturnValue16=FAIL，报告里能看到具体哪项如 max=8000）
+($s8,$n8,$q8,$p8,$v8,$u8,$l8,$t8) = DoIP_UDS_Step(
+    "udsPayload=22 F1 30,expectedPrefix=62 F1 30",
+    "[{\"name\":\"转速\",\"offset\":3,\"length\":2,\"type\":\"uint16\",\"endian\":\"big\",\"formula\":\"x/4\",\"unit\":\"rpm\",\"expectedMin\":0,\"expectedMax\":8000},"
+    + "{\"name\":\"状态\",\"offset\":7,\"length\":1,\"type\":\"uint8\",\"expectedValue\":\"0x01\"}]",
+    "DoIP_ECU");
+
+// 序列命令：udsSequence 管道分隔，expectedPrefix/expectedResponse 可一一对应
+DoIP_UDS_Step(
+    "udsSequence=10 03|22 F1 05|22 F1 30,"
+    + "expectedResponse=50 03|62 F1 05|62 F1 30,"
+    + "connectionMode=session,minRequestIntervalMs=20",
+    "", "DoIP_ECU");
+
+// 31 01 启动例程（失败自动 31 02 停止重试）
+DoIP_UDS_Step(
+    "udsPayload=31 01 02 01,expectedPrefix=71 01 02 01,sequenceRetryCount=3,sequenceRetryDelayMs=1000",
+    "", "DoIP_ECU");
+
+// ---------------------------------------------------------------------------
+// 用法 2：Excel 直读单步（共享 EonTest 的测试工步表）
+// ---------------------------------------------------------------------------
+// 直接传工步号，函数内部读该行的 G 列（配置参数1）+ P 列（解码配置）执行。
+// 参数：Argument0=Excel路径, Argument1=Sheet名, Argument2=工步号,
+//       Argument3=会话键覆盖(留空用Excel设备名), Argument4=默认host兜底(可留空)。
+// 返回统一 8 个：(...,$value,$unit,$limits,$testType)。
+($xresult, $xtestItem, $xreq, $xresp, $xvalue, $xunit, $xlimits, $xtestType) = DoIP_UDS_ExcelStep(
+    "D:\\Tests\\real-device-acceptance.xlsx", "测试工步表", "5");
+if($xresult == true)
+{
+    UpdateStatus("Excel step OK: " + $xtestItem + " = " + $xvalue + " " + $xunit + " [" + $xlimits + "]");
+}
+else
+{
+    UpdateStatus("Excel step FAILED: " + $xtestItem);
+}
+
+// ---------------------------------------------------------------------------
+// 用法 3：Excel 一键跑完整张表的 UDS 步骤（最终形态）
+// ---------------------------------------------------------------------------
+($passCount, $failCount, $total) = DoIP_UDS_ExcelRunAll(
+    "D:\\Tests\\real-device-acceptance.xlsx", "测试工步表");
+UpdateStatus("ExcelRunAll: pass=" + $passCount + " fail=" + $failCount + " total=" + $total);
+
+// ---------------------------------------------------------------------------
+// 手动会话控制（可选，对齐现有 ZLG ZUDS 系列的习惯）
+// ---------------------------------------------------------------------------
+($handle, $ok) = DoIP_UDS_Init("172.16.0.8", 13400, "0x102D", "0x1008", "0x00", "DoIP_ECU");
+DoIP_UDS_Set_Tester_Present("DoIP_ECU", 2000, "3E 80", 1);
+($respData, $ustatus, $utype, $uds_str) = DoIP_UDS_Request("DoIP_ECU", "22 F1 05", "62 F1 05", "", 5000);
+DoIP_UDS_Release("DoIP_ECU");
+
+// 独立解码验证（不需要会话）
+($dvalue, $dname, $dunit, $dstatus, $dcriteria, $dlimits, $dtype) = DoIP_UDS_Decode("62 F1 05 0B B8",
+    "valueOffset=3,valueLength=2,valueType=uint16,endian=big,formula=x/4,unit=V,expectedMin=0,expectedMax=5");
+
+UpdateStatus("====== DoIP UDS Demo end ======");
+End;

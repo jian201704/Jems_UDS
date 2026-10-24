@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0</TargetFrameworks>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyName>Jabil.Uds.Can</AssemblyName>
+    <RootNamespace>Jabil.Uds.Can</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Vendor-neutral CAN and DoCAN transport for the Jabil UDS engine.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ExcelDecodeCore\ExcelDecodeCore.csproj" />
+  </ItemGroup>
+</Project>
