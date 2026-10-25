@@ -27,13 +27,17 @@ JEMSts_UDS_Parser/
 │   ├── FormulaEvaluator.cs       #   安全公式求值（x + - * / % abs/min/max/round…）
 │   ├── HexUtils.cs               #   十六进制解析/格式化
 │   └── MiniJson.cs               #   无依赖 JSON 解析
-├── UdsCore/                      # UDS/DoIP 引擎 DLL（纯 C#，无 JEMSts 依赖，可独立测试）
-│   ├── UdsStepConfig.cs          #   步骤配置模型（对齐 DoipMasterPlugin）
+├── UdsProtocol/                  # UDS 配置、步骤模型和 Excel 步骤扩展
+│   ├── UdsStepConfig.cs
+│   └── ExcelStepExtensions.cs
+├── UdsCore/                      # DoIP TCP 客户端、路由激活与会话池
 │   ├── DoipConstants.cs          #   ISO 13400 常量
 │   ├── DoipClient.cs             #   DoIP TCP 客户端（路由激活/诊断/ACK/NACK/0x78）
 │   ├── DoipSessionPool.cs        #   会话池（跨步骤复用 TCP 连接）
-│   ├── UdsRequestExecutor.cs     #   步骤执行器（移植 DoipMasterPlugin::executeStep）
-│   └── ExcelStepExtensions.cs    #   UDS 侧 Excel 扩展（IsUdsStep/ToStepConfig/设备表回填）
+│   └── UdsRequestExecutor.cs     #   DoIP 步骤执行器
+├── UdsCan/                       # CAN/CAN-FD ISO-TP transport
+├── UdsCanZlg/                    # ZLG provider 与硬件适配
+├── UdsEngine/                    # 传输无关的 UDS transaction executor
 ├── UdsFunctionLibrary/           # net48 JEMSts 函数库（Test 子类，供脚本反射调用）
 │   ├── DoIP_UDS_Step.cs          #   配置驱动单步（G 列 + P 列）
 │   ├── DoIP_UDS_ExcelStep.cs     #   Excel 直读单步（按工步号，返回 E/J/K/L/M + 判定）
@@ -45,6 +49,7 @@ JEMSts_UDS_Parser/
 │   └── DoIP_UDS_Decode.cs        #   独立解码
 ├── UdsConsoleHarness/            # 控制台自测（不依赖 JEMSts）
 ├── tools/LoadProbe/              # 探针：模拟 JEMSts 函数库发现机制，验证多 DLL 可解析
+├── EonSharedCore/、TestCore/      # 未加入当前解决方案，含与 ExcelDecodeCore 重复的源码
 ├── scripts/
 │   ├── demo_cell.jts             #   JEMSts 示例脚本
 │   └── DecodeProfiles/DoIP_DID_F130.json
@@ -61,25 +66,30 @@ JEMSts_UDS_Parser/
 
 ## 部署到 JEMSts
 
-1. `dotnet build -c Release`（或运行 `build.ps1`，将所有项目 DLL 收集到 `artifacts`）；
-2. 把 **`artifacts` 里的 7 个项目 DLL** 全部拷贝到
-   `D:\Projects\ZEEKR\Software\JEMSts_8.55.00x64\Modules\UserLibraries\`：
+1. 运行 `./build.ps1`，构建 Release 并将 7 个项目 DLL 收集到 `artifacts`；该命令不会自动覆盖 JEMSts 安装目录；
+2. 部署时明确提供目标目录，例如：
+    `./build.ps1 -Deploy -DeployPath "D:\Path\To\JEMSts\Modules\UserLibraries"`；
+3. 脚本需要的 7 个项目 DLL 为：
     - `Jabil.Uds.Shared.dll`（共享引擎：Excel/解码/配置）
     - `Jabil.Uds.Protocol.dll`（协议配置与 Excel 步骤模型）
     - `Jabil.Uds.DoIp.dll`（UDS/DoIP 引擎）
     - `Jabil.Uds.Engine.dll`（传输无关 UDS 引擎）
     - `Jabil.Uds.Can.dll` 和 `Jabil.Uds.Can.Zlg.dll`（CAN 引擎及 ZLG provider）
     - `Jabil.Uds.FunctionLibrary.dll`（JEMSts 函数库）
-3. 重启 JEMSts，脚本里即可调用 `DoIP_UDS_Step(...)` 等函数；
-4. 解码 Profile 文件（如 `DoIP_DID_F130.json`）放在 Excel 同目录的 `DecodeProfiles\` 下，或 Excel 同目录。
+4. 重启 JEMSts，脚本里即可调用 `DoIP_UDS_Step(...)` 等函数；
+5. 解码 Profile 文件（如 `DoIP_DID_F130.json`）放在 Excel 同目录的 `DecodeProfiles\` 下，或 Excel 同目录。
 
 使用 CAN 时，额外将 `Jabil.Uds.Can.dll`、实际 provider DLL（例如 `Jabil.Uds.Can.Zlg.dll`）及厂商驱动依赖部署到 JEMSts 可加载的位置。先调用 `CAN_UDS_Init` 打开并注册设备，再执行 CAN 步骤；测试结束调用 `CAN_UDS_Release`。CAN 初始化参数、经典 CAN/CAN-FD、ISO-TP 多帧和排错流程见 [`docs/G列P列参数详解.md`](docs/G列P列参数详解.md) 的 CAN 章节。
 
-> **为什么 3 个 DLL 能行**：`JEMSts.exe.config` 的 `<probing privatePath>` 已包含
+> **依赖加载**：`JEMSts.exe.config` 的 `<probing privatePath>` 已包含
 > `Modules\UserLibraries`，所以 JEMSts 发现（临时 AppDomain 按名加载）和运行（`Assembly.LoadFile`）
-> 都能解析 ExcelDecodeCore/UdsCore 依赖。已用 `tools/LoadProbe` 按 JEMSts 的发现机制实测通过
+> 都能解析共享、协议、传输和函数库依赖。已用 `tools/LoadProbe` 按 JEMSts 的发现机制实测通过
 > （`PROBE OK: types=10 testSubclasses=9 concrete=8`）。
 > 无需签名、无需校验登记。
+
+### 外部二进制依赖
+
+`lib/` 中的 JEMSts 引用程序集和 `Modules/UserLibraries/zlgcan/` 中的 ZLG DLL 用于构建/部署。公开分发前，请确认这些二进制的再分发权限；仓库包含它们不代表获得了再分发授权。
 
 ---
 

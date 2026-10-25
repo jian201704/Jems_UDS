@@ -1,0 +1,40 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build Release assemblies
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Run regression harness
+        run: dotnet run --project UdsConsoleHarness/UdsConsoleHarness.csproj --configuration Release --framework net48 --no-build
+
+      - name: Upload first-party net48 assemblies
+        uses: actions/upload-artifact@v4
+        with:
+          name: jems-uds-net48
+          if-no-files-found: error
+          path: |
+            artifacts/Jabil.Uds.Shared.dll
+            artifacts/Jabil.Uds.Protocol.dll
+            artifacts/Jabil.Uds.DoIp.dll
+            artifacts/Jabil.Uds.Engine.dll
+            artifacts/Jabil.Uds.Can.dll
+            artifacts/Jabil.Uds.Can.Zlg.dll
+            artifacts/Jabil.Uds.FunctionLibrary.dll

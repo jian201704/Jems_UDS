@@ -1,5 +1,11 @@
-# Build script for JEMSts_UDS_Parser
-# Usage: PowerShell -ExecutionPolicy Bypass -File build.ps1
+# Build and collect Release assemblies for JEMSts_UDS_Parser.
+# Usage: .\build.ps1 [-Deploy -DeployPath <JEMSts Modules\UserLibraries path>]
+
+[CmdletBinding()]
+param(
+    [switch]$Deploy,
+    [string]$DeployPath
+)
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
@@ -23,17 +29,24 @@ if ($LASTEXITCODE -eq 0) {
     foreach ($dll in $dlls) {
         Copy-Item (Join-Path $root $dll) $out -Force
     }
-    $deploy = "D:\Projects\ZEEKR\Software\JEMSts_8.55.00x64\Modules\UserLibraries"
-    if (Test-Path $deploy) {
-        foreach ($dll in $dlls) {
-            Copy-Item (Join-Path $out (Split-Path $dll -Leaf)) $deploy -Force
+    if ($Deploy) {
+        if ([string]::IsNullOrWhiteSpace($DeployPath)) {
+            throw "-Deploy requires -DeployPath pointing to the intended JEMSts Modules\UserLibraries directory."
         }
-        Write-Host "Deployed updated DLLs to: $deploy" -ForegroundColor Green
+        if (-not (Test-Path $DeployPath -PathType Container)) {
+            throw "Deployment directory does not exist: $DeployPath"
+        }
+        foreach ($dll in $dlls) {
+            Copy-Item (Join-Path $out (Split-Path $dll -Leaf)) $DeployPath -Force
+        }
+        Write-Host "Deployed updated DLLs to: $DeployPath" -ForegroundColor Green
     }
     Write-Host ""
     Write-Host "== BUILD SUCCESS ==" -ForegroundColor Green
-    Write-Host "First-party DLLs copied to artifacts; deploy them to (JEMSts probing already includes this dir):"
-    Write-Host "  D:\Projects\ZEEKR\Software\JEMSts_8.55.00x64\Modules\UserLibraries\" -ForegroundColor Yellow
+    Write-Host "First-party DLLs copied to: $out"
+    if (-not $Deploy) {
+        Write-Host "No deployment was performed. Use -Deploy -DeployPath to copy DLLs to JEMSts."
+    }
     Get-ChildItem $out -Filter *.dll | Select-Object Name, Length | Format-Table -AutoSize
 }
 else {
