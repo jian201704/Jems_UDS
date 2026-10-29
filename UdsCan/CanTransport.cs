@@ -374,6 +374,15 @@ namespace Jabil.Uds.Can
             Array.Copy(payload, 0, data, 1, payload.Length);
             SendFrames(new List<CanFrame> { Frame(requestId, PadFrame(data)) });
         }
+        public IList<CanFrame> ReceiveRaw(int timeoutMilliseconds, int receiveMode)
+        {
+            if (!connected) throw new InvalidOperationException("CAN channel is not open.");
+            if (timeoutMilliseconds < 0) throw new ArgumentOutOfRangeException("timeoutMilliseconds");
+            ICanTypedReceiveChannel typedChannel = channel as ICanTypedReceiveChannel;
+            return typedChannel == null
+                ? channel.Receive(timeoutMilliseconds)
+                : typedChannel.Receive(timeoutMilliseconds, receiveMode);
+        }
         public DiagnosticFrame Request(DiagnosticFrame request, int timeoutMilliseconds)
         {
             return Request(request, timeoutMilliseconds, 0);
